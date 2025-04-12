@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuthFormProps {
   mode: "signin" | "signup";
@@ -15,11 +17,20 @@ interface AuthFormProps {
 const AuthForm = ({ mode }: AuthFormProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [name, setName] = useState("");
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,23 +56,46 @@ const AuthForm = ({ mode }: AuthFormProps) => {
 
     setIsLoading(true);
 
-    // Simulate authentication process
     try {
-      // In a real app, this would call an auth API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: mode === "signin" ? "Welcome back!" : "Account created",
-        description: mode === "signin" 
-          ? "You've successfully signed in" 
-          : "Your account has been created successfully",
-      });
-      
-      navigate("/dashboard");
-    } catch (error) {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Welcome back!",
+          description: "You've successfully signed in",
+        });
+        
+        navigate("/dashboard");
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: name || email.split('@')[0],
+            },
+          },
+        });
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Account created",
+          description: "Your account has been created successfully",
+        });
+        
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      console.error("Authentication error:", error);
       toast({
         title: "Authentication error",
-        description: "An error occurred during authentication",
+        description: error.message || "An error occurred during authentication",
         variant: "destructive",
       });
     } finally {
@@ -98,6 +132,20 @@ const AuthForm = ({ mode }: AuthFormProps) => {
               required
             />
           </div>
+          
+          {mode === "signup" && (
+            <div className="space-y-2">
+              <Label htmlFor="name">Name (optional)</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+          )}
+          
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <div className="relative">

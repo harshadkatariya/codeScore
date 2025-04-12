@@ -1,17 +1,32 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CodeUploader from "@/components/CodeUploader";
 import ScoreCard from "@/components/ScoreCard";
 import ScoreBreakdown, { ScoreCategory } from "@/components/ScoreBreakdown";
 import { FileCode2, History, Settings } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
+
+interface ScoreHistory {
+  id: string;
+  score: number;
+  created_at: string;
+  file_name: string | null;
+  tech_stack: string | null;
+}
 
 const Dashboard = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [isAnalyzed, setIsAnalyzed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistory[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Mock score data
   const [scoreCategories, setScoreCategories] = useState<ScoreCategory[]>([
@@ -28,6 +43,63 @@ const Dashboard = () => {
   const totalScore = scoreCategories.reduce((sum, category) => sum + category.score, 0);
   const maxTotalScore = scoreCategories.reduce((sum, category) => sum + category.maxScore, 0);
 
+  const fetchScoreHistory = async () => {
+    if (!user) return;
+    
+    setIsLoadingHistory(true);
+    try {
+      const { data, error } = await supabase
+        .from('ats_score_history')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+      
+      setScoreHistory(data || []);
+    } catch (error) {
+      console.error('Error fetching score history:', error);
+      toast({
+        title: "Error fetching history",
+        description: "Could not load your score history",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchScoreHistory();
+  }, [user]);
+
+  const saveScoreToDatabase = async () => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('ats_score_history')
+        .insert({
+          user_id: user.id,
+          score: totalScore,
+          file_name: fileName,
+          tech_stack: "JavaScript/React" // This would be dynamically determined in a real app
+        });
+
+      if (error) throw error;
+      
+      await fetchScoreHistory(); // Refresh the history
+    } catch (error) {
+      console.error('Error saving score:', error);
+      toast({
+        title: "Error saving score",
+        description: "Could not save your analysis results",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleUploadComplete = (name: string, content: string) => {
     setFileName(name);
     setFileContent(content);
@@ -39,7 +111,8 @@ const Dashboard = () => {
       setIsAnalyzing(false);
       setIsAnalyzed(true);
       
-      // In a real app, we would analyze the code here and set real scores
+      // Save score to database after analysis is complete
+      saveScoreToDatabase();
     }, 2000);
   };
 
@@ -174,9 +247,40 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No analysis history found. Upload your first code file to get started.</p>
-              </div>
+              {isLoadingHistory ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                </div>
+              ) : scoreHistory.length === 0 ? (
+                <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                  <p>No analysis history found. Upload your first code file to get started.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="py-3 px-4 text-left">Date</th>
+                        <th className="py-3 px-4 text-left">File Name</th>
+                        <th className="py-3 px-4 text-left">Tech Stack</th>
+                        <th className="py-3 px-4 text-left">Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scoreHistory.map((record) => (
+                        <tr key={record.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                          <td className="py-3 px-4">
+                            {new Date(record.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4">{record.file_name || 'Unnamed File'}</td>
+                          <td className="py-3 px-4">{record.tech_stack || 'Unknown'}</td>
+                          <td className="py-3 px-4 font-medium">{record.score}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

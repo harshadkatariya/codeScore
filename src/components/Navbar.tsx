@@ -2,13 +2,37 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Code, Menu, X } from "lucide-react";
+import { Code, Menu, X, User, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user) return "";
+    
+    const name = user.user_metadata?.name || user.email || "";
+    if (!name) return "U";
+    
+    if (name.includes(" ")) {
+      const [firstName, lastName] = name.split(" ");
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    }
+    
+    return name.charAt(0).toUpperCase();
   };
 
   return (
@@ -35,12 +59,36 @@ const Navbar = () => {
         </nav>
         
         <div className="hidden md:flex items-center gap-4">
-          <Link to="/auth?mode=signin">
-            <Button variant="outline">Sign In</Button>
-          </Link>
-          <Link to="/auth?mode=signup">
-            <Button className="bg-purple-600 hover:bg-purple-700">Sign Up</Button>
-          </Link>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="rounded-full h-10 w-10 p-0">
+                  <Avatar>
+                    <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>{user.user_metadata?.name || user.email}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={signOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <>
+              <Link to="/auth?mode=signin">
+                <Button variant="outline">Sign In</Button>
+              </Link>
+              <Link to="/auth?mode=signup">
+                <Button className="bg-purple-600 hover:bg-purple-700">Sign Up</Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -79,18 +127,42 @@ const Navbar = () => {
               Dashboard
             </Link>
             <hr className="border-gray-200 dark:border-gray-700" />
-            <Link 
-              to="/auth?mode=signin"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Button variant="outline" className="w-full">Sign In</Button>
-            </Link>
-            <Link 
-              to="/auth?mode=signup"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Button className="w-full bg-purple-600 hover:bg-purple-700">Sign Up</Button>
-            </Link>
+            {user ? (
+              <div className="space-y-2">
+                <div className="flex items-center py-2">
+                  <Avatar className="h-8 w-8 mr-2">
+                    <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{user.user_metadata?.name || user.email}</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full flex items-center justify-center"
+                  onClick={() => {
+                    signOut();
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign out</span>
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Link 
+                  to="/auth?mode=signin"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Button variant="outline" className="w-full">Sign In</Button>
+                </Link>
+                <Link 
+                  to="/auth?mode=signup"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700">Sign Up</Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       )}

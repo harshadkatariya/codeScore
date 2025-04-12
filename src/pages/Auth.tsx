@@ -1,17 +1,33 @@
 
 import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AuthForm from "@/components/AuthForm";
 import { Code } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const mode = searchParams.get("mode") === "signup" ? "signup" : "signin";
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   
   useEffect(() => {
+    // Redirect to dashboard if user is already logged in
+    if (user && !loading) {
+      navigate("/dashboard");
+    }
+    
     // Set page title based on mode
     document.title = mode === "signup" ? "Sign Up - CodeScore" : "Sign In - CodeScore";
-  }, [mode]);
+  }, [mode, user, loading, navigate]);
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-16 w-16 border-4 border-purple-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-50 to-white dark:from-gray-900 dark:to-gray-950">
