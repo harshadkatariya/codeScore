@@ -1,5 +1,5 @@
 
-import { CheckCircle, Book, Lock, Zap, PuzzlePiece, Award, BarChart3 } from "lucide-react";
+import { CheckCircle, Book, Lock, Zap, Puzzle, Award, BarChart3 } from "lucide-react";
 
 const Features = () => {
   const featuresList = [
@@ -28,7 +28,7 @@ const Features = () => {
       points: "15"
     },
     {
-      icon: <PuzzlePiece className="h-8 w-8 text-purple-600" />,
+      icon: <Puzzle className="h-8 w-8 text-purple-600" />,
       title: "Modularity & Reusability",
       description: "Evaluate code organization, component design, and reusability patterns.",
       points: "10"
