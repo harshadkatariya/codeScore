@@ -1,14 +1,16 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import CodeUploader from "@/components/CodeUploader";
 import ScoreCard from "@/components/ScoreCard";
 import ScoreBreakdown, { ScoreCategory } from "@/components/ScoreBreakdown";
-import { FileCode2, History, Settings } from "lucide-react";
+import { FileCode2, History, Settings, LogOut, FileUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ScoreHistory {
   id: string;
@@ -19,8 +21,9 @@ interface ScoreHistory {
 }
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [isAnalyzed, setIsAnalyzed] = useState(false);
@@ -51,6 +54,7 @@ const Dashboard = () => {
       const { data, error } = await supabase
         .from('ats_score_history')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -116,9 +120,46 @@ const Dashboard = () => {
     }, 2000);
   };
 
+  const handleAnalyzeAnother = () => {
+    setFileName(null);
+    setFileContent(null);
+    setIsAnalyzed(false);
+    setIsAnalyzing(false);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return "";
+    return user.user_metadata?.name || user.email || "User";
+  };
+
   return (
     <div className="container py-8 px-4 md:px-6">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center">
+            <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">
+              Logged in as:
+            </span>
+            <span className="font-medium">{getUserDisplayName()}</span>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleSignOut}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Sign out</span>
+          </Button>
+        </div>
+      </div>
       
       <Tabs defaultValue="analyze" className="w-full">
         <TabsList className="grid grid-cols-3 mb-8">
@@ -153,7 +194,7 @@ const Dashboard = () => {
             </div>
           ) : isAnalyzing ? (
             <div className="flex flex-col items-center justify-center space-y-6 py-16">
-              <div className="animate-spin h-16 w-16 border-4 border-purple-500 border-t-transparent rounded-full"></div>
+              <Spinner size="lg" />
               <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">Analyzing your code...</h2>
                 <p className="text-gray-600 dark:text-gray-400">
@@ -165,11 +206,20 @@ const Dashboard = () => {
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="md:col-span-3">
-                  <CardHeader>
-                    <CardTitle>Analysis Results for {fileName}</CardTitle>
-                    <CardDescription>
-                      Here's how your code scored across our quality metrics
-                    </CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Analysis Results for {fileName}</CardTitle>
+                      <CardDescription>
+                        Here's how your code scored across our quality metrics
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      onClick={handleAnalyzeAnother}
+                      className="flex items-center gap-2"
+                    >
+                      <FileUp className="h-4 w-4" />
+                      <span>Analyze Another File</span>
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -249,7 +299,7 @@ const Dashboard = () => {
             <CardContent>
               {isLoadingHistory ? (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                  <Spinner size="md" />
                 </div>
               ) : scoreHistory.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
