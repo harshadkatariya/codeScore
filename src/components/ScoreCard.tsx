@@ -16,8 +16,8 @@ const ScoreCard = ({
   description,
   className = "",
 }: ScoreCardProps) => {
-  // Calculate percentage
-  const percentage = Math.round((score / maxScore) * 100);
+  // No need to calculate percentage here, it should already be a percentage (0-100)
+  const percentage = score;
 
   // Get color based on score percentage
   const getColor = () => {

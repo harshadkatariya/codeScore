@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +43,18 @@ const Dashboard = () => {
     { name: "Complexity & Maintainability", score: 8, maxScore: 10, description: "Cognitive complexity and long-term maintainability." }
   ]);
 
-  // Calculate total score
-  const totalScore = scoreCategories.reduce((sum, category) => sum + category.score, 0);
-  const maxTotalScore = scoreCategories.reduce((sum, category) => sum + category.maxScore, 0);
+  // Calculate total score - Fix: Calculate percentage then round to whole number
+  const calculateTotalScore = () => {
+    const totalPoints = scoreCategories.reduce((sum, category) => sum + category.score, 0);
+    const maxPoints = scoreCategories.reduce((sum, category) => sum + category.maxScore, 0);
+    // Calculate as a percentage out of 100 and round to nearest whole number
+    return Math.round((totalPoints / maxPoints) * 100);
+  };
+  
+  // Get the total score as a percentage out of 100
+  const totalScore = calculateTotalScore();
+  // For display purposes in the ScoreCard component
+  const maxTotalScore = 100;
 
   const fetchScoreHistory = async () => {
     if (!user) return;
@@ -86,7 +96,7 @@ const Dashboard = () => {
         .from('ats_score_history')
         .insert({
           user_id: user.id,
-          score: totalScore,
+          score: totalScore, // Use the correctly calculated total score
           file_name: fileName,
           tech_stack: "JavaScript/React" // This would be dynamically determined in a real app
         });
