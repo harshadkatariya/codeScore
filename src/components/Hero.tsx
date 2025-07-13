@@ -30,7 +30,7 @@ const Hero = () => {
           <div className="flex flex-col sm:flex-row gap-4 animate-slide-up">
             <Link to="/auth?mode=signup">
               <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white">
-                Get Started
+                Get Started for Free
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AuthForm from "@/components/AuthForm";
+import BackButton from "@/components/BackButton";
 import { Code } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -31,6 +32,9 @@ const Auth = () => {
   
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-50 to-white dark:from-gray-900 dark:to-gray-950">
+      <div className="absolute top-4 left-4">
+        <BackButton />
+      </div>
       <div className="w-full max-w-md mb-8 text-center">
         <div className="flex items-center justify-center mb-6">
           <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">

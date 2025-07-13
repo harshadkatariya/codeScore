@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import BackButton from "@/components/BackButton";
 import { FileQuestion, Home } from "lucide-react";
 
 const NotFound = () => {
@@ -17,6 +18,9 @@ const NotFound = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-white dark:from-gray-900 dark:to-gray-950 p-4">
+      <div className="absolute top-4 left-4">
+        <BackButton />
+      </div>
       <div className="text-center max-w-md">
         <div className="flex justify-center mb-6">
           <div className="p-6 bg-purple-100 dark:bg-purple-900/30 rounded-full">

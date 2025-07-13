@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import CodeUploader from "@/components/CodeUploader";
 import ScoreCard from "@/components/ScoreCard";
 import ScoreBreakdown, { ScoreCategory } from "@/components/ScoreBreakdown";
-import { FileCode2, History, Settings, LogOut, FileUp } from "lucide-react";
+import BackButton from "@/components/BackButton";
+import { FileCode2, History, Settings, LogOut, FileUp, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Spinner } from "@/components/ui/spinner";
+import { EnhancedCodeAnalyzer, AnalysisResult } from "@/utils/codeAnalyzer";
+import { PDFReportGenerator, PDFReportData } from "@/utils/pdfGenerator";
 
 interface ScoreHistory {
   id: string;
@@ -19,6 +22,11 @@ interface ScoreHistory {
   created_at: string;
   file_name: string | null;
   tech_stack: string | null;
+  code_file_url: string | null;
+  report_file_url: string | null;
+  keywords_matched: string[] | null;
+  functionality_score: number | null;
+  similarity_score: number | null;
 }
 
 const Dashboard = () => {
@@ -31,29 +39,13 @@ const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistory[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [codeAnalyzer] = useState(new EnhancedCodeAnalyzer());
+  const [pdfGenerator] = useState(new PDFReportGenerator());
 
-  // Mock score data
-  const [scoreCategories, setScoreCategories] = useState<ScoreCategory[]>([
-    { name: "Readability & Formatting", score: 18, maxScore: 20, description: "Code style consistency, naming conventions, and overall readability." },
-    { name: "Security Practices", score: 19, maxScore: 20, description: "Vulnerabilities, insecure API usage, and security risks." },
-    { name: "Performance & Efficiency", score: 12, maxScore: 15, description: "Algorithmic efficiency, resource usage, and optimization opportunities." },
-    { name: "Testability & Coverage", score: 13, maxScore: 15, description: "Test support and current test coverage." },
-    { name: "Modularity & Reusability", score: 8, maxScore: 10, description: "Code organization, component design, and reusability patterns." },
-    { name: "Best Practices", score: 9, maxScore: 10, description: "Adherence to industry standards and technologies." },
-    { name: "Complexity & Maintainability", score: 8, maxScore: 10, description: "Cognitive complexity and long-term maintainability." }
-  ]);
-
-  // Calculate total score - Fix: Calculate percentage then round to whole number
-  const calculateTotalScore = () => {
-    const totalPoints = scoreCategories.reduce((sum, category) => sum + category.score, 0);
-    const maxPoints = scoreCategories.reduce((sum, category) => sum + category.maxScore, 0);
-    // Calculate as a percentage out of 100 and round to nearest whole number
-    return Math.round((totalPoints / maxPoints) * 100);
-  };
-  
-  // Get the total score as a percentage out of 100
-  const totalScore = calculateTotalScore();
-  // For display purposes in the ScoreCard component
+  // Get current analysis data
+  const scoreCategories = analysisResult?.categories || [];
+  const totalScore = analysisResult?.overallScore || 0;
   const maxTotalScore = 100;
 
   const fetchScoreHistory = async () => {
@@ -88,7 +80,54 @@ const Dashboard = () => {
     fetchScoreHistory();
   }, [user]);
 
-  const saveScoreToDatabase = async () => {
+  const uploadCodeFile = async (fileName: string, content: string): Promise<string | null> => {
+    if (!user) return null;
+    
+    try {
+      const fileBlob = new Blob([content], { type: 'text/plain' });
+      const filePath = `${user.id}/${Date.now()}_${fileName}`;
+      
+      const { error } = await supabase.storage
+        .from('code-files')
+        .upload(filePath, fileBlob);
+      
+      if (error) throw error;
+      
+      const { data } = supabase.storage
+        .from('code-files')
+        .getPublicUrl(filePath);
+      
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading code file:', error);
+      return null;
+    }
+  };
+
+  const uploadReportFile = async (fileName: string, reportBlob: Blob): Promise<string | null> => {
+    if (!user) return null;
+    
+    try {
+      const filePath = `${user.id}/${Date.now()}_${fileName.replace(/\.[^/.]+$/, "")}_report.pdf`;
+      
+      const { error } = await supabase.storage
+        .from('score-reports')
+        .upload(filePath, reportBlob);
+      
+      if (error) throw error;
+      
+      const { data } = supabase.storage
+        .from('score-reports')
+        .getPublicUrl(filePath);
+      
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading report file:', error);
+      return null;
+    }
+  };
+
+  const saveScoreToDatabase = async (analysisResult: AnalysisResult, codeFileUrl: string | null, reportFileUrl: string | null) => {
     if (!user) return;
     
     try {
@@ -96,9 +135,14 @@ const Dashboard = () => {
         .from('ats_score_history')
         .insert({
           user_id: user.id,
-          score: totalScore, // Use the correctly calculated total score
+          score: analysisResult.overallScore,
           file_name: fileName,
-          tech_stack: "JavaScript/React" // This would be dynamically determined in a real app
+          tech_stack: "JavaScript/React", // This would be dynamically determined in a real app
+          code_file_url: codeFileUrl,
+          report_file_url: reportFileUrl,
+          keywords_matched: analysisResult.keywordsMatched,
+          functionality_score: analysisResult.functionalityScore,
+          similarity_score: analysisResult.similarityScore
         });
 
       if (error) throw error;
@@ -114,20 +158,52 @@ const Dashboard = () => {
     }
   };
 
-  const handleUploadComplete = (name: string, content: string) => {
+  const handleUploadComplete = async (name: string, content: string) => {
     setFileName(name);
     setFileContent(content);
     setIsAnalyzed(false);
     setIsAnalyzing(true);
     
-    // Simulate analysis process
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setIsAnalyzed(true);
-      
-      // Save score to database after analysis is complete
-      saveScoreToDatabase();
-    }, 2000);
+    // Perform real analysis
+    setTimeout(async () => {
+      try {
+        // Analyze the code
+        const result = codeAnalyzer.analyzeCode(content, name);
+        setAnalysisResult(result);
+        
+        // Upload files and generate report
+        const codeFileUrl = await uploadCodeFile(name, content);
+        
+        // Generate PDF report
+        const reportData: PDFReportData = {
+          fileName: name,
+          analysisResult: result,
+          userEmail: user?.email || '',
+          timestamp: new Date()
+        };
+        const reportBlob = pdfGenerator.generateReport(reportData);
+        const reportFileUrl = await uploadReportFile(name, reportBlob);
+        
+        // Save to database
+        await saveScoreToDatabase(result, codeFileUrl, reportFileUrl);
+        
+        setIsAnalyzing(false);
+        setIsAnalyzed(true);
+        
+        toast({
+          title: "Analysis complete!",
+          description: "Your code has been analyzed and report generated.",
+        });
+      } catch (error) {
+        console.error('Analysis error:', error);
+        setIsAnalyzing(false);
+        toast({
+          title: "Analysis failed",
+          description: "There was an error analyzing your code.",
+          variant: "destructive",
+        });
+      }
+    }, 3000);
   };
 
   const handleAnalyzeAnother = () => {
@@ -135,6 +211,64 @@ const Dashboard = () => {
     setFileContent(null);
     setIsAnalyzed(false);
     setIsAnalyzing(false);
+    setAnalysisResult(null);
+  };
+
+  const downloadFile = async (url: string, fileName: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download the file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateAndDownloadPDF = () => {
+    if (!analysisResult || !fileName || !user) return;
+    
+    const reportData: PDFReportData = {
+      fileName,
+      analysisResult,
+      userEmail: user.email || '',
+      timestamp: new Date()
+    };
+    
+    const reportBlob = pdfGenerator.generateReport(reportData);
+    const url = window.URL.createObjectURL(reportBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName.replace(/\.[^/.]+$/, "")}_analysis_report.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const downloadOriginalFile = () => {
+    if (!fileContent || !fileName) return;
+    
+    const blob = new Blob([fileContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleSignOut = async () => {
@@ -150,6 +284,7 @@ const Dashboard = () => {
 
   return (
     <div className="container py-8 px-4 md:px-6">
+      <BackButton />
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <div className="flex items-center gap-4">
@@ -232,7 +367,7 @@ const Dashboard = () => {
                     </Button>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                       <div className="md:col-span-1">
                         <ScoreCard
                           score={totalScore}
@@ -245,6 +380,26 @@ const Dashboard = () => {
                       <div className="md:col-span-3">
                         <ScoreBreakdown categories={scoreCategories} />
                       </div>
+                    </div>
+                    
+                    {/* Download Options */}
+                    <div className="flex flex-wrap gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <h3 className="w-full text-lg font-semibold mb-2">Download Options</h3>
+                      <Button 
+                        onClick={downloadOriginalFile}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Original Code
+                      </Button>
+                      <Button 
+                        onClick={generateAndDownloadPDF}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Score Report (PDF)
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -322,8 +477,9 @@ const Dashboard = () => {
                       <tr className="border-b">
                         <th className="py-3 px-4 text-left">Date</th>
                         <th className="py-3 px-4 text-left">File Name</th>
-                        <th className="py-3 px-4 text-left">Tech Stack</th>
                         <th className="py-3 px-4 text-left">Score</th>
+                        <th className="py-3 px-4 text-left">Keywords</th>
+                        <th className="py-3 px-4 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -332,9 +488,42 @@ const Dashboard = () => {
                           <td className="py-3 px-4">
                             {new Date(record.created_at).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-4">{record.file_name || 'Unnamed File'}</td>
-                          <td className="py-3 px-4">{record.tech_stack || 'Unknown'}</td>
-                          <td className="py-3 px-4 font-medium">{record.score}</td>
+                          <td className="py-3 px-4 font-medium">{record.file_name || 'Unnamed File'}</td>
+                          <td className="py-3 px-4">
+                            <span className="font-bold text-lg">{record.score}/100</span>
+                            {record.functionality_score && (
+                              <div className="text-xs text-gray-500">
+                                F: {record.functionality_score} | S: {record.similarity_score}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {record.keywords_matched?.slice(0, 3).join(', ') || 'None'}
+                              {record.keywords_matched && record.keywords_matched.length > 3 && '...'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
+                              {record.code_file_url && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => downloadFile(record.code_file_url!, record.file_name || 'code.txt')}
+                                >
+                                  Code
+                                </Button>
+                              )}
+                              {record.report_file_url && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => downloadFile(record.report_file_url!, `${record.file_name}_report.pdf`)}
+                                >
+                                  Report
+                                </Button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

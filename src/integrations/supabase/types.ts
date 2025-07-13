@@ -16,26 +16,41 @@ export type Database = {
     Tables: {
       ats_score_history: {
         Row: {
+          code_file_url: string | null
           created_at: string
           file_name: string | null
+          functionality_score: number | null
           id: string
+          keywords_matched: string[] | null
+          report_file_url: string | null
           score: number
+          similarity_score: number | null
           tech_stack: string | null
           user_id: string
         }
         Insert: {
+          code_file_url?: string | null
           created_at?: string
           file_name?: string | null
+          functionality_score?: number | null
           id?: string
+          keywords_matched?: string[] | null
+          report_file_url?: string | null
           score: number
+          similarity_score?: number | null
           tech_stack?: string | null
           user_id: string
         }
         Update: {
+          code_file_url?: string | null
           created_at?: string
           file_name?: string | null
+          functionality_score?: number | null
           id?: string
+          keywords_matched?: string[] | null
+          report_file_url?: string | null
           score?: number
+          similarity_score?: number | null
           tech_stack?: string | null
           user_id?: string
         }

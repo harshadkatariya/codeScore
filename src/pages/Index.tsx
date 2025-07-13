@@ -26,7 +26,7 @@ const Index = () => {
             </p>
             <Link to="/auth?mode=signup">
               <Button size="lg" variant="outline" className="text-white border-white hover:bg-white hover:text-purple-700">
-                Get Started For Free
+                Get Started for Free
               </Button>
             </Link>
           </div>
