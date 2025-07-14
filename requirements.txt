@@ -1,0 +1,17 @@
+# This file is for documentation only. Use package.json for actual dependency management.
+# Node.js and npm must be installed
+Node.js >= 18.x
+npm >= 9.x
+
+# Project dependencies (as seen in package.json)
+vite
+react
+react-dom
+typescript
+tailwindcss
+shadcn-ui
+clsx
+lucide-react
+@vitejs/plugin-react
+postcss
+autoprefixer
